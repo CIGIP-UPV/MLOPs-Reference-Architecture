@@ -1,0 +1,1 @@
+Este archivo demuestra que Jupyter puede escribir en MinIO.

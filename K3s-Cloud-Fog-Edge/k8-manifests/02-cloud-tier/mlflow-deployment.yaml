@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlflow
+  namespace: cloud-tier
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mlflow
+  template:
+    metadata:
+      labels:
+        app: mlflow
+    spec:
+      containers:
+      - name: mlflow
+        # Usamos python slim para instalar dependencias al vuelo (igual que tu original)
+        # En producción idealmente usarías una imagen ya construida.
+        image: python:3.9-slim
+        command: ["/bin/sh", "-c"]
+        args:
+          - pip install mlflow boto3 psycopg2-binary &&
+            mlflow server \
+            --host 0.0.0.0 \
+            --backend-store-uri postgresql://postgres:password123@timescale-svc.fog-tier.svc.cluster.local:5432/mlflow_db \
+            --default-artifact-root s3://mlflow-bucket/
+        env:
+        - name: AWS_ACCESS_KEY_ID
+          value: "admin"
+        - name: AWS_SECRET_ACCESS_KEY
+          value: "password123"
+        - name: MLFLOW_S3_ENDPOINT_URL
+          # Conexión Cross-Namespace al Fog Tier
+          value: "http://minio-svc.fog-tier.svc.cluster.local:9000"
+        ports:
+        - containerPort: 5000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mlflow-svc
+  namespace: cloud-tier
+spec:
+  selector:
+    app: mlflow
+  ports:
+    - port: 5000
+      targetPort: 5000
+  type: LoadBalancer

@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airflow
+  namespace: cloud-tier
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: airflow
+  template:
+    metadata:
+      labels:
+        app: airflow
+    spec:
+      initContainers:
+      - name: wait-for-db
+        image: postgres:13
+        command: ['sh', '-c', 'until pg_isready -h timescale-svc.fog-tier.svc.cluster.local -p 5432 -U postgres; do echo waiting for db; sleep 2; done;']
+      containers:
+      - name: webserver
+        image: apache/airflow:2.7.0
+        args: ["webserver"]
+        env: &airflow_env
+        - name: AIRFLOW__CORE__EXECUTOR
+          value: "LocalExecutor"
+        - name: AIRFLOW__CORE__SQL_ALCHEMY_CONN
+          # CONEXIÓN INTER-NAMESPACE AL FOG TIER
+          value: "postgresql+psycopg2://postgres:password123@timescale-svc.fog-tier.svc.cluster.local:5432/airflow_db"
+        - name: AIRFLOW__CORE__LOAD_EXAMPLES
+          value: "False"
+        ports:
+        - containerPort: 8080
+      - name: scheduler
+        image: apache/airflow:2.7.0
+        args: ["scheduler"]
+        env: *airflow_env
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: airflow-svc
+  namespace: cloud-tier
+spec:
+  selector:
+    app: airflow
+  ports:
+    - port: 8080
+      targetPort: 8080
+  type: LoadBalancer

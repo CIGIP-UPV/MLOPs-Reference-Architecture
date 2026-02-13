@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mosquitto
+  namespace: edge-tier
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mosquitto
+  template:
+    metadata:
+      labels:
+        app: mosquitto
+    spec:
+      containers:
+      - name: mosquitto
+        image: eclipse-mosquitto:2
+        ports:
+        - containerPort: 1883
+        - containerPort: 9001
+        # Configuración inline rápida para permitir anónimo
+        command: ["/usr/sbin/mosquitto", "-c", "/mosquitto-no-auth.conf"]
+        volumeMounts:
+        - name: config-vol
+          mountPath: /mosquitto-no-auth.conf
+          subPath: mosquitto.conf
+      volumes:
+      - name: config-vol
+        configMap:
+          name: mosquitto-config
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mosquitto-config
+  namespace: edge-tier
+data:
+  mosquitto.conf: |
+    listener 1883
+    allow_anonymous true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mosquitto-svc
+  namespace: edge-tier
+spec:
+  selector:
+    app: mosquitto
+  ports:
+    - name: mqtt
+      port: 1883
+    - name: ws
+      port: 9001
+  type: LoadBalancer
