@@ -1,158 +1,189 @@
 # Kubernetes Industrial MLOps Lab ☸️ (Cloud-Fog-Edge)
 
-This folder contains the **Kubernetes Manifests** to deploy a distributed **Cloud-Fog-Edge** architecture for Industrial AI.
+This folder contains the **Kubernetes manifests** to deploy the distributed **Cloud-Fog-Edge** architecture for Industrial AI described in the article.
 
-Unlike the flat Docker Compose setup, this deployment models a real-world production environment using **Namespaces** to isolate the Cloud (Datacenter), Fog (Regional/On-Prem), and Edge (Factory Floor) layers.
+Unlike the flat Docker Compose setup, this deployment models a more production-oriented environment using **Namespaces** to isolate Cloud, Fog, Edge, Governance and Enterprise responsibilities.
+
+## What This Kubernetes Flavor Adds
+
+This K3s flavor now mirrors the expanded reference implementation:
+
+- Cloud bootstrap job for databases, buckets, seeded CNC data and baseline model registration.
+- Versioned Airflow image aligned with the Docker flavor.
+- Fog bridge deployment with spool storage.
+- Edge sync and edge inference deployments with persistent deployment state.
+- Enterprise API and Enterprise UI namespace.
+- Extended Prometheus scraping for the closed-loop services.
 
 ---
 
 ## 🏗 Architecture Layers
 
-The cluster is divided into 4 logical tiers:
+The cluster is divided into 5 logical tiers:
 
-| Tier | Namespace | Key Components                 | Role |
-| :--- | :--- |:-------------------------------| :--- |
-| **1. Cloud** | `cloud-tier` | **Airflow, MLflow**            | Orchestration, Heavy Training, Model Registry. |
-| **2. Fog** | `fog-tier` | **TimescaleDB, MinIO**         | Persistence Layer. Unifies Metadata & Time-Series storage. |
-| **3. Edge** | `edge-tier` | **Kafka, Node-RED, Mosquitto** | High-throughput ingestion & Plant Simulation. |
-| **4. Gov** | `governance` | **Prometheus, Grafana**        | Cross-tier Observability & Dashboards. |
+| Tier | Namespace | Key Components | Role |
+| :--- | :--- | :--- | :--- |
+| **1. Cloud** | `cloud-tier` | **Airflow, MLflow, bootstrap job** | Orchestration, retraining, registry, lifecycle bootstrap |
+| **2. Fog** | `fog-tier` | **TimescaleDB, MinIO, Fog Bridge** | Persistence, buffering, storage and data plane |
+| **3. Edge** | `edge-tier` | **Kafka, Mosquitto, Node-RED, CNC Simulator, Edge Sync, Edge Inference** | Real-time plant ingestion and low-latency scoring |
+| **4. Governance** | `governance` | **Prometheus, Grafana** | Cross-tier observability |
+| **5. Enterprise** | `enterprise-tier` | **Enterprise API, Enterprise UI** | Supervisory control and reviewer-facing dashboard |
 
 ---
 
 ## 📂 Directory Structure
 
-The manifests are organized by execution order and tier:
-
 ```text
 k8-manifests/
-├── 00-base/              # 1. Namespaces & Persistent Volume Claims (PVCs)
-├── 01-fog-tier/          # 2. Data Layer (Must start first for DB)
-│   ├── timescale.yaml    # Unified Database
-│   └── minio.yaml        # Artifact Store
-├── 02-cloud-tier/        # 3. AI Core
-│   ├── airflow.yaml      # Pipeline Orchestrator
-│   ├── mlflow.yaml       # Registry
-├── 03-edge-tier/         # 4. Factory Floor
-│   ├── kafka.yaml        # Streaming Backbone
-│   ├── nodered.yaml      # Simulator
-│   └── mosquitto.yaml    # MQTT Broker
-└── 04-governance/        # 5. Monitoring tools
+├── 00-base/                  # Namespaces and PVCs
+├── 01-fog-tier/              # TimescaleDB, MinIO, Fog Bridge
+├── 02-cloud-tier/            # Airflow, MLflow, bootstrap job
+├── 03-edge-tier/             # Kafka, Mosquitto, Node-RED, edge services, CNC simulator
+├── 04-governance/            # Prometheus and Grafana
+└── 05-enterprise-tier/       # Enterprise API and Enterprise UI
 ```
+
+---
 
 # 🚀 Deployment Guide
 
 ### Prerequisites
-* **Kubernetes Cluster** (Docker Desktop, Minikube, K3s, or Cloud).
-* `kubectl` CLI configured.
-* **Resources:** Ensure your cluster has at least **4 CPUs** and **8GB RAM** allocated.
+
+- **Kubernetes Cluster** (Docker Desktop K8s, Minikube, K3s or equivalent).
+- `kubectl` configured.
+- Minimum recommended resources: **4 CPUs** and **8 GB RAM**.
+- Local images built from this repository or pushed to a registry accessible by the cluster.
+
+## Build the Custom Images First
+
+The Kubernetes manifests expect images built from the repository:
+
+```bash
+docker build -t ind-mlops-airflow:latest -f Docker-Cloud-Fog-Edge/build/airflow/Dockerfile Docker-Cloud-Fog-Edge
+docker build -t ind-mlops-mlflow:latest -f Docker-Cloud-Fog-Edge/build/mlflow/Dockerfile Docker-Cloud-Fog-Edge
+docker build -t ind-mlops-python-service:latest -f Docker-Cloud-Fog-Edge/build/python-service/Dockerfile Docker-Cloud-Fog-Edge
+docker build -t ind-mlops-enterprise-ui:latest -f Docker-Cloud-Fog-Edge/build/enterprise-ui/Dockerfile Docker-Cloud-Fog-Edge
+```
+
+If you are using K3s or a remote cluster, load or push these images to the runtime registry used by the cluster.
 
 ---
 
 ## Step-by-Step Installation
 
-Run the commands in this specific order to ensure dependencies (like the Database) are ready.
+Run the commands in this order so the persistence layer is available before the bootstrap and control plane.
 
 **1. Base Infrastructure**
-Create the namespaces and storage claims.
+
 ```bash
 kubectl apply -f k8-manifests/00-base/
 ```
 
-**2. Fog Tier (Data Layer)**
-Deploy the storage engines.
+**2. Fog Tier**
+
 ```bash
 kubectl apply -f k8-manifests/01-fog-tier/
 ```
-> **⏳ WAIT:** Wait 1 minute here to ensure TimescaleDB is fully running before starting Airflow.
 
-**3. Cloud Tier (The Brain)**
-Deploy the AI services.
+Wait until `timescale` and `minio` are running.
+
+**3. Cloud Tier**
+
 ```bash
 kubectl apply -f k8-manifests/02-cloud-tier/
 ```
 
-**4. Edge Tier (The Plant)**
-Deploy the ingestion services.
+This includes the `platform-bootstrap` Job that creates databases/buckets, seeds CNC telemetry and registers the initial production model.
+
+**4. Edge Tier**
+
 ```bash
 kubectl apply -f k8-manifests/03-edge-tier/
 ```
 
-**5. Governance**
-Deploy monitoring.
+**5. Governance Tier**
+
 ```bash
 kubectl apply -f k8-manifests/04-governance/
+```
+
+**6. Enterprise Tier**
+
+```bash
+kubectl apply -f k8-manifests/05-enterprise-tier/
 ```
 
 ---
 
 ## 🔌 Accessing Services (Port Forwarding)
 
-Since services are isolated in namespaces, use `kubectl port-forward` to access them from localhost. Run each command in a separate terminal tab.
-
 ### ☁️ Cloud Tier Services
 
-**Airflow UI (Orchestrator)**
+**Airflow UI**
+
 ```bash
 kubectl port-forward svc/airflow-svc -n cloud-tier 8080:8080
 ```
-* **URL:** [http://localhost:8080](http://localhost:8080)
-* **Creds:** `admin` / `admin`
 
-**MLflow UI (Registry)**
+**MLflow UI**
+
 ```bash
 kubectl port-forward svc/mlflow-svc -n cloud-tier 5000:5000
 ```
-* **URL:** [http://localhost:5000](http://localhost:5000)
-
-### 🏭 Edge Tier Services
-
-**Node-RED (Factory Simulator)**
-```bash
-kubectl port-forward svc/nodered-svc -n edge-tier 1880:1880
-```
-* **URL:** [http://localhost:1880](http://localhost:1880)
 
 ### 🌫️ Fog Tier Services
 
-**MinIO Console (Storage)**
+**MinIO Console**
+
 ```bash
 kubectl port-forward svc/minio-svc -n fog-tier 9001:9001
 ```
-* **URL:** [http://localhost:9001](http://localhost:9001)
-* **Creds:** `admin` / `password123`
+
+### 🏭 Edge Tier Services
+
+**Node-RED**
+
+```bash
+kubectl port-forward svc/nodered-svc -n edge-tier 1880:1880
+```
 
 ### 🛡️ Governance
 
-**Grafana (Dashboards)**
+**Grafana**
+
 ```bash
 kubectl port-forward svc/grafana-svc -n governance 3000:3000
 ```
-* **URL:** [http://localhost:3000](http://localhost:3000)
-* **Creds:** `admin` / `admin`
+
+### 🏢 Enterprise Tier
+
+**Enterprise API**
+
+```bash
+kubectl port-forward svc/enterprise-api-svc -n enterprise-tier 8085:8085
+```
+
+**Enterprise UI**
+
+```bash
+kubectl port-forward svc/enterprise-ui-svc -n enterprise-tier 8088:80
+```
 
 ---
 
-## ⚙️ Essential Configuration (First Run)
+## ⚙️ Operational Notes
 
-**1. Create the S3 Bucket**
-The storage is fresh. You must manually create the bucket for MLflow to work.
-1. Go to **MinIO** ([http://localhost:9001](http://localhost:9001)).
-2. Login with `admin` / `password123`.
-3. Click **Create Bucket** -> Name it `mlflow-bucket`.
-
-**2. Kafka Connection**
-Inside the cluster, services talk via DNS.
-* **Broker Internal URL:** `kafka-svc.edge-tier.svc.cluster.local:9092`
-* Use this URL inside Airflow or your local scripts when configuring the Kafka Producer/Consumer.
+- The MinIO buckets are created by the bootstrap job through the shared Python lifecycle logic.
+- The edge sync agent stores the applied deployment state in `edge-state-pvc`.
+- The fog bridge stores buffered events in `fog-spool-pvc` if downstream delivery fails.
+- Airflow DAGs are embedded into the custom Airflow image and aligned with the Docker implementation.
 
 ---
 
 ## 🗑️ Cleanup
 
-To remove the entire stack and all namespaces:
-
 ```bash
-kubectl delete namespace cloud-tier fog-tier edge-tier governance
+kubectl delete namespace cloud-tier fog-tier edge-tier governance enterprise-tier
 ```
 
-> **Note:** This will delete your Persistent Volume Claims (PVCs) and data depending on your cluster's storage policy.
+> Note: PVC cleanup behavior depends on your storage class reclaim policy.

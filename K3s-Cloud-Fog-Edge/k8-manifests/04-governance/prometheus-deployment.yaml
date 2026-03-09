@@ -20,6 +20,22 @@ data:
       - job_name: 'edge-nodered'
         static_configs:
           - targets: ['nodered-svc.edge-tier.svc.cluster.local:1880']
+
+      - job_name: 'edge-inference'
+        static_configs:
+          - targets: ['edge-inference-svc.edge-tier.svc.cluster.local:8010']
+
+      - job_name: 'edge-sync'
+        static_configs:
+          - targets: ['edge-sync-svc.edge-tier.svc.cluster.local:8012']
+
+      - job_name: 'cnc-simulator'
+        static_configs:
+          - targets: ['cnc-simulator-svc.edge-tier.svc.cluster.local:8013']
+
+      - job_name: 'fog-bridge'
+        static_configs:
+          - targets: ['fog-bridge-svc.fog-tier.svc.cluster.local:8011']
 ---
 apiVersion: apps/v1
 kind: Deployment

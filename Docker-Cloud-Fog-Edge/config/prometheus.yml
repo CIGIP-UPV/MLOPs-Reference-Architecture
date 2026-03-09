@@ -6,9 +6,22 @@ scrape_configs:
     static_configs:
       - targets: ['mlflow:5000']
 
-  # Scrape Airflow metrics (requires statsd-exporter usually, but basic check here)
   - job_name: 'airflow'
     static_configs:
       - targets: ['airflow-webserver:8080']
 
-  # Future: Add node-exporter or cadvisor for container stats
+  - job_name: 'edge-inference'
+    static_configs:
+      - targets: ['edge-inference:8010']
+
+  - job_name: 'fog-bridge'
+    static_configs:
+      - targets: ['fog-bridge:8011']
+
+  - job_name: 'edge-sync'
+    static_configs:
+      - targets: ['edge-sync:8012']
+
+  - job_name: 'cnc-simulator'
+    static_configs:
+      - targets: ['cnc-simulator:8013']

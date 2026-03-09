@@ -16,23 +16,53 @@ spec:
       initContainers:
       - name: wait-for-db
         image: postgres:13
-        command: ['sh', '-c', 'until pg_isready -h timescale-svc.fog-tier.svc.cluster.local -p 5432 -U postgres; do echo waiting for db; sleep 2; done;']
+        command: ['sh', '-c', 'until pg_isready -h timescale-svc.fog-tier.svc.cluster.local -p 5432 -U admin; do echo waiting for db; sleep 2; done;']
       containers:
       - name: webserver
-        image: apache/airflow:2.7.0
+        image: ind-mlops-airflow:latest
         args: ["webserver"]
         env: &airflow_env
         - name: AIRFLOW__CORE__EXECUTOR
           value: "LocalExecutor"
+        - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
+          value: "postgresql+psycopg2://admin:password123@timescale-svc.fog-tier.svc.cluster.local:5432/airflow_db"
         - name: AIRFLOW__CORE__SQL_ALCHEMY_CONN
           # CONEXIÓN INTER-NAMESPACE AL FOG TIER
-          value: "postgresql+psycopg2://postgres:password123@timescale-svc.fog-tier.svc.cluster.local:5432/airflow_db"
+          value: "postgresql+psycopg2://admin:password123@timescale-svc.fog-tier.svc.cluster.local:5432/airflow_db"
         - name: AIRFLOW__CORE__LOAD_EXAMPLES
           value: "False"
+        - name: MLFLOW_TRACKING_URI
+          value: "http://mlflow-svc.cloud-tier.svc.cluster.local:5000"
+        - name: MLFLOW_S3_ENDPOINT_URL
+          value: "http://minio-svc.fog-tier.svc.cluster.local:9000"
+        - name: MLFLOW_EXPERIMENT_NAME
+          value: "CNC_Tool_Breakage_Closed_Loop"
+        - name: MLFLOW_MODEL_NAME
+          value: "cnc_tool_breakage_classifier"
+        - name: AWS_ACCESS_KEY_ID
+          value: "admin"
+        - name: AWS_SECRET_ACCESS_KEY
+          value: "password123"
+        - name: TIMESCALE_HOST
+          value: "timescale-svc.fog-tier.svc.cluster.local"
+        - name: TIMESCALE_PORT
+          value: "5432"
+        - name: TIMESCALE_ADMIN_USER
+          value: "admin"
+        - name: TIMESCALE_ADMIN_PASSWORD
+          value: "password123"
+        - name: FACTORY_DB_NAME
+          value: "factory_db"
+        - name: INDUSTRIAL_SHARED_SECRET
+          value: "industrial-mlops-shared-secret"
+        - name: MQTT_HOST
+          value: "mosquitto-svc.edge-tier.svc.cluster.local"
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: "kafka-svc.edge-tier.svc.cluster.local:9092"
         ports:
         - containerPort: 8080
       - name: scheduler
-        image: apache/airflow:2.7.0
+        image: ind-mlops-airflow:latest
         args: ["scheduler"]
         env: *airflow_env
 ---

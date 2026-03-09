@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: enterprise-ui
+  namespace: enterprise-tier
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: enterprise-ui
+  template:
+    metadata:
+      labels:
+        app: enterprise-ui
+    spec:
+      containers:
+      - name: enterprise-ui
+        image: ind-mlops-enterprise-ui:latest
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: enterprise-ui-svc
+  namespace: enterprise-tier
+spec:
+  selector:
+    app: enterprise-ui
+  ports:
+    - port: 80
+      targetPort: 80
+  type: LoadBalancer

@@ -1,0 +1,66 @@
+{
+  "curated_dataset": {
+    "current_alarm_code_counts": {
+      "0.0": 3239,
+      "160.0": 1,
+      "1704.5": 9,
+      "1933.0": 34,
+      "3000.0": 3,
+      "3002.0": 156,
+      "325.0": 20,
+      "409.0": 397,
+      "436.0": 11,
+      "500.0": 656,
+      "500.3333333333333": 3,
+      "500.5": 68,
+      "501.0": 231,
+      "65.0": 1,
+      "91.0": 19
+    },
+    "negative_rows": 3636,
+    "positive_rows": 1212,
+    "rows": 4848,
+    "selection_reasons": {
+      "sampled_healthy": 2424,
+      "sampled_other_alarm": 1212,
+      "target_horizon": 1212
+    },
+    "split_counts": {
+      "test": 728,
+      "train": 3393,
+      "validation": 727
+    }
+  },
+  "dataset_name": "nakamura_reference_windows",
+  "dropped_raw_columns": "All max/min statistics and auxiliary files were excluded to keep the repository compact.",
+  "kept_columns": [
+    "spindle_speed_p1_rpm",
+    "spindle_speed_p2_rpm",
+    "feed_rate_p1_mm_min",
+    "feed_rate_p2_mm_min",
+    "spindle_motor_load_p1_pct",
+    "spindle_motor_load_p2_pct",
+    "servo_load_current_p1_pct",
+    "servo_load_current_p2_pct",
+    "cutting_time_p1_s",
+    "cutting_time_p2_s",
+    "temp_apc_p1_c",
+    "temp_apc_p2_c"
+  ],
+  "label_definition": "actual_breakage=1 if a target alarm occurs within the next 120 seconds.",
+  "raw_dataset": {
+    "healthy_rows": 1637765,
+    "other_alarm_rows": 14225,
+    "positive_rows": 1212,
+    "rows": 1653202,
+    "time_max": "2023-05-05 21:27:01+00:00",
+    "time_min": "2023-03-28 10:00:01+00:00"
+  },
+  "source_member": "TRAINING DATA/data.csv",
+  "source_zip": "/Users/miguelangel/Downloads/OneDrive_1_9-3-2026.zip",
+  "target_alarm_codes": [
+    "409.0",
+    "410.0",
+    "411.0"
+  ]
+}

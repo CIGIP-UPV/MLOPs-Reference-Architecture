@@ -1,26 +1,66 @@
 version: '3.8'
 
-# --- SHARED CONFIGURATION FOR AIRFLOW SERVICES ---
+x-platform-env: &platform-env
+  TIMESCALE_HOST: timescale
+  TIMESCALE_PORT: 5432
+  TIMESCALE_ADMIN_USER: admin
+  TIMESCALE_ADMIN_PASSWORD: password123
+  AIRFLOW_DB_NAME: airflow_db
+  MLFLOW_DB_NAME: mlflow_db
+  FACTORY_DB_NAME: factory_db
+  MLFLOW_TRACKING_URI: http://mlflow:5000
+  MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+  MLFLOW_EXPERIMENT_NAME: CNC_Tool_Breakage_Closed_Loop
+  MLFLOW_MODEL_NAME: cnc_tool_breakage_classifier
+  COMPANY_MLFLOW_EXPERIMENT_NAME: CNC_Tool_Breakage_Company_Reference
+  COMPANY_MLFLOW_MODEL_NAME: cnc_company_reference_classifier
+  BOOTSTRAP_COMPANY_REFERENCE: 'true'
+  AWS_ACCESS_KEY_ID: admin
+  AWS_SECRET_ACCESS_KEY: password123
+  MQTT_HOST: mosquitto
+  MQTT_PORT: 1883
+  MQTT_COMPANY_SENSOR_TOPIC: factory/cnc/cell-01/sensors/company
+  MQTT_COMPANY_PREDICTION_TOPIC: factory/cnc/cell-01/predictions/company
+  KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  INDUSTRIAL_SHARED_SECRET: industrial-mlops-shared-secret
+  ENTERPRISE_API_KEY: enterprise-demo-key
+  DEPLOYMENT_ROOT: /var/lib/industrial-mlops/edge
+  SPOOL_ROOT: /var/lib/industrial-mlops/spool
+  EDGE_BOOTSTRAP_MODEL_NAME: ${EDGE_BOOTSTRAP_MODEL_NAME:-cnc_tool_breakage_classifier}
+  SIMULATOR_PROFILE: ${SIMULATOR_PROFILE:-synthetic}
+  TZ: Europe/Madrid
+
 x-airflow-common: &airflow-common
-  build: ./build/airflow
+  build:
+    context: .
+    dockerfile: build/airflow/Dockerfile
   environment:
-    &airflow-common-env
+    <<: *platform-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
-    # Connects to TimescaleDB (Fog Tier) for metadata
-    AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@timescale:5432/airflow_db
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://admin:password123@timescale:5432/airflow_db
+    AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://admin:password123@timescale:5432/airflow_db
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
-    # Airflow needs to know where MLflow and MinIO are
-    MLFLOW_TRACKING_URI: http://mlflow:5000
-    MLFLOW_S3_ENDPOINT_URL: http://minio:9000
-    AWS_ACCESS_KEY_ID: admin
-    AWS_SECRET_ACCESS_KEY: password123
+    PYTHONPATH: /opt/industrial_mlops/apps
   volumes:
     - ./notebooks/dags:/opt/airflow/dags
     - ./notebooks/logs:/opt/airflow/logs
     - ./notebooks/plugins:/opt/airflow/plugins
+    - ./apps:/opt/industrial_mlops/apps
   depends_on:
-    - timescale
+    timescale:
+      condition: service_healthy
+    mlflow:
+      condition: service_healthy
+  networks:
+    - mlops-net
+
+x-python-service: &python-service
+  build:
+    context: .
+    dockerfile: build/python-service/Dockerfile
+  environment:
+    <<: *platform-env
   networks:
     - mlops-net
 
@@ -29,29 +69,24 @@ services:
   # 1. FOG TIER: DATA & STORAGE
   # Centralized persistence layer (Metadata + Time Series)
   # ================================================================
-
-  # TimescaleDB: Replaces standard Postgres.
-  # Stores MLflow metadata, Airflow metadata, and IoT Sensor Data.
   timescale:
     image: timescale/timescaledb:${TIMESCALE_VERSION}
     container_name: ind-timescale
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: password123
-      # We will create multiple DBs (mlflow_db, airflow_db, sensors_db) via init script if needed,
-      # or manually. For simplicity here, we assume default usage or manual creation.
     ports:
       - "5432:5432"
     volumes:
       - timescale_data:/var/lib/postgresql/data
+      - ./config/initdb.sql:/docker-entrypoint-initdb.d/10-initdb.sql
     networks:
       - mlops-net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U admin"]
       interval: 5s
-      retries: 5
+      retries: 10
 
-  # MinIO: Object Storage (S3 Compatible) for Artifacts
   minio:
     image: minio/minio
     container_name: ind-minio
@@ -67,59 +102,95 @@ services:
     networks:
       - mlops-net
 
-  # Utility to create buckets automatically on startup
   create_buckets:
     image: minio/mc
     depends_on:
       - minio
     entrypoint: >
       /bin/sh -c "
-      /usr/bin/mc alias set myminio http://minio:9000 admin password123;
-      /usr/bin/mc mb myminio/mlflow-bucket;
+      until /usr/bin/mc alias set myminio http://minio:9000 admin password123; do sleep 2; done;
+      /usr/bin/mc mb --ignore-existing myminio/mlflow-bucket;
+      /usr/bin/mc mb --ignore-existing myminio/enterprise-artifacts;
+      /usr/bin/mc mb --ignore-existing myminio/ota-bundles;
       exit 0;
       "
     networks:
       - mlops-net
 
+  fog-bridge:
+    <<: *python-service
+    container_name: ind-fog-bridge
+    command: python -m services.fog_bridge
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_started
+      mosquitto:
+        condition: service_started
+    volumes:
+      - fog_spool:/var/lib/industrial-mlops/spool
+
   # ================================================================
   # 2. CLOUD TIER: AI ORCHESTRATION & TRAINING
-  # Where heavy lifting, training pipelines, and registry live.
   # ================================================================
-
-  # MLflow: Model Registry
   mlflow:
-    build: ./build/mlflow
+    build:
+      context: .
+      dockerfile: build/mlflow/Dockerfile
     container_name: ind-mlflow
     ports:
-      - "5000:5000"
+      - "${MLFLOW_HOST_PORT:-5000}:5000"
     environment:
-      - AWS_ACCESS_KEY_ID=admin
-      - AWS_SECRET_ACCESS_KEY=password123
-      - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
-      # Connects to TimescaleDB
-      - BACKEND_STORE_URI=postgresql://admin:password123@timescale:5432/mlflow_db
+      AWS_ACCESS_KEY_ID: admin
+      AWS_SECRET_ACCESS_KEY: password123
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      BACKEND_STORE_URI: postgresql://admin:password123@timescale:5432/mlflow_db
     depends_on:
       timescale:
         condition: service_healthy
       minio:
         condition: service_started
+      create_buckets:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000').read()"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
     networks:
       - mlops-net
 
-  # Airflow Init: Runs DB migrations (One-off task)
+  db-bootstrap:
+    <<: *python-service
+    container_name: ind-db-bootstrap
+    command: /bin/sh -c "sleep 15 && python -m services.db_bootstrap"
+    depends_on:
+      timescale:
+        condition: service_healthy
+      mlflow:
+        condition: service_healthy
+      create_buckets:
+        condition: service_completed_successfully
+
   airflow-init:
     <<: *airflow-common
     container_name: ind-airflow-init
     command: version
     environment:
-      <<: *airflow-common-env
+      <<: *platform-env
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://admin:password123@timescale:5432/airflow_db
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://admin:password123@timescale:5432/airflow_db
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      PYTHONPATH: /opt/industrial_mlops/apps
       _AIRFLOW_DB_UPGRADE: 'true'
       _AIRFLOW_WWW_USER_CREATE: 'true'
       _AIRFLOW_WWW_USER_USERNAME: 'admin'
       _AIRFLOW_WWW_USER_PASSWORD: 'admin'
-    user: "0:0" # Run as root to fix permissions if needed
+    user: "0:0"
 
-  # Airflow Webserver: The UI for Orchestration
   airflow-webserver:
     <<: *airflow-common
     container_name: ind-airflow-webserver
@@ -129,10 +200,9 @@ services:
     depends_on:
       airflow-init:
         condition: service_completed_successfully
-    networks:
-      - mlops-net
+      db-bootstrap:
+        condition: service_completed_successfully
 
-  # Airflow Scheduler: Executes the DAGs
   airflow-scheduler:
     <<: *airflow-common
     container_name: ind-airflow-scheduler
@@ -140,36 +210,34 @@ services:
     depends_on:
       airflow-init:
         condition: service_completed_successfully
-    networks:
-      - mlops-net
+      db-bootstrap:
+        condition: service_completed_successfully
 
-  # Jupyter Lab: Interactive Data Science Environment (IDE)
   jupyter:
-    build: ./build/jupyter
-    container_name: ind-jupyter-lab
+    build:
+      context: .
+      dockerfile: build/jupyter/Dockerfile
+    container_name: ${JUPYTER_CONTAINER_NAME:-ind-jupyter-lab}
     ports:
-      - "8888:8888"
+      - "${JUPYTER_HOST_PORT:-8888}:8888"
     environment:
-      - JUPYTER_ENABLE_LAB=yes
-      - MLFLOW_TRACKING_URI=http://mlflow:5000
-      - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
-      - AWS_ACCESS_KEY_ID=admin
-      - AWS_SECRET_ACCESS_KEY=password123
-      # Kafka Connection info
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      <<: *platform-env
+      JUPYTER_ENABLE_LAB: 'yes'
+      PYTHONPATH: /home/jovyan/work/apps
     volumes:
-      - ./notebooks:/home/jovyan/work
+      - ./notebooks:/home/jovyan/work/notebooks
+      - ./apps:/home/jovyan/work/apps
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
     networks:
       - mlops-net
 
   # ================================================================
-  # 3. EDGE TIER: INGESTION & PLANT SIMULATION
-  # High throughput data ingestion and factory devices.
+  # 3. EDGE TIER: INGESTION, INFERENCE & PLANT SIMULATION
   # ================================================================
-
-  # Zookeeper: Required for Kafka coordination
   zookeeper:
-    image: confluentinc/cp-zookeeper:7.4.0
+    image: confluentinc/cp-zookeeper:${KAFKA_VERSION}
     container_name: ind-zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
@@ -177,14 +245,14 @@ services:
     networks:
       - mlops-net
 
-  # Kafka: High-throughput Event Streaming
   kafka:
-    image: confluentinc/cp-kafka:7.4.0
+    image: confluentinc/cp-kafka:${KAFKA_VERSION}
     container_name: ind-kafka
     depends_on:
       - zookeeper
     ports:
       - "9092:9092"
+      - "29092:29092"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
@@ -195,7 +263,6 @@ services:
     networks:
       - mlops-net
 
-  # Mosquitto: MQTT Broker (Lightweight IoT protocol)
   mosquitto:
     image: eclipse-mosquitto:2
     container_name: ind-mqtt
@@ -207,7 +274,6 @@ services:
     networks:
       - mlops-net
 
-  # Node-RED: Low-code programming for event-driven applications
   node-red:
     image: nodered/node-red:latest
     container_name: ind-node-red
@@ -218,10 +284,49 @@ services:
     networks:
       - mlops-net
 
+  edge-sync:
+    <<: *python-service
+    container_name: ind-edge-sync
+    command: python -m services.edge_sync
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+      mosquitto:
+        condition: service_started
+      mlflow:
+        condition: service_healthy
+    volumes:
+      - edge_deployment:/var/lib/industrial-mlops/edge
+
+  edge-inference:
+    <<: *python-service
+    container_name: ind-edge-inference
+    command: python -m services.edge_inference
+    depends_on:
+      edge-sync:
+        condition: service_started
+      mosquitto:
+        condition: service_started
+      db-bootstrap:
+        condition: service_completed_successfully
+    volumes:
+      - edge_deployment:/var/lib/industrial-mlops/edge
+
+  cnc-simulator:
+    <<: *python-service
+    container_name: ind-cnc-simulator
+    command: python -m services.cnc_simulator
+    depends_on:
+      edge-inference:
+        condition: service_started
+      fog-bridge:
+        condition: service_started
+      mosquitto:
+        condition: service_started
+
   # ================================================================
   # 4. GOVERNANCE TIER: OBSERVABILITY
   # ================================================================
-
   prometheus:
     image: prom/prometheus
     container_name: ind-prometheus
@@ -238,9 +343,50 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ./config/grafana/provisioning:/etc/grafana/provisioning
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards
     depends_on:
       - prometheus
+    networks:
+      - mlops-net
+
+  # ================================================================
+  # 5. ENTERPRISE TIER: API, UI AND OPTIONAL CLUSTER GOVERNANCE
+  # ================================================================
+  enterprise-api:
+    <<: *python-service
+    container_name: ind-enterprise-api
+    command: python -m services.enterprise_api
+    ports:
+      - "8085:8085"
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+      edge-sync:
+        condition: service_started
+
+  enterprise-ui:
+    build:
+      context: .
+      dockerfile: build/enterprise-ui/Dockerfile
+    container_name: ind-enterprise-ui
+    ports:
+      - "8088:80"
+    depends_on:
+      enterprise-api:
+        condition: service_started
+    networks:
+      - mlops-net
+
+  rancher:
+    image: rancher/rancher:stable
+    container_name: ind-rancher
+    privileged: true
+    ports:
+      - "8443:443"
+    profiles: ["enterprise-ops"]
     networks:
       - mlops-net
 
@@ -251,3 +397,5 @@ networks:
 volumes:
   minio_data:
   timescale_data:
+  edge_deployment:
+  fog_spool:

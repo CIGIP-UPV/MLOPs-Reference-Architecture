@@ -1,0 +1,42 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: platform-bootstrap
+  namespace: cloud-tier
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: bootstrap
+        image: ind-mlops-python-service:latest
+        command: ["python", "-m", "services.db_bootstrap"]
+        env:
+        - name: TIMESCALE_HOST
+          value: "timescale-svc.fog-tier.svc.cluster.local"
+        - name: TIMESCALE_PORT
+          value: "5432"
+        - name: TIMESCALE_ADMIN_USER
+          value: "admin"
+        - name: TIMESCALE_ADMIN_PASSWORD
+          value: "password123"
+        - name: AIRFLOW_DB_NAME
+          value: "airflow_db"
+        - name: MLFLOW_DB_NAME
+          value: "mlflow_db"
+        - name: FACTORY_DB_NAME
+          value: "factory_db"
+        - name: MLFLOW_TRACKING_URI
+          value: "http://mlflow-svc.cloud-tier.svc.cluster.local:5000"
+        - name: MLFLOW_S3_ENDPOINT_URL
+          value: "http://minio-svc.fog-tier.svc.cluster.local:9000"
+        - name: AWS_ACCESS_KEY_ID
+          value: "admin"
+        - name: AWS_SECRET_ACCESS_KEY
+          value: "password123"
+        - name: MQTT_HOST
+          value: "mosquitto-svc.edge-tier.svc.cluster.local"
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: "kafka-svc.edge-tier.svc.cluster.local:9092"
+        - name: INDUSTRIAL_SHARED_SECRET
+          value: "industrial-mlops-shared-secret"

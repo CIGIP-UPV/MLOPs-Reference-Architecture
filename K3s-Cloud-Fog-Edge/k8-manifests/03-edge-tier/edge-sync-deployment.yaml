@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edge-sync
+  namespace: edge-tier
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: edge-sync
+  template:
+    metadata:
+      labels:
+        app: edge-sync
+    spec:
+      containers:
+      - name: edge-sync
+        image: ind-mlops-python-service:latest
+        command: ["python", "-m", "services.edge_sync"]
+        env:
+        - name: MLFLOW_TRACKING_URI
+          value: "http://mlflow-svc.cloud-tier.svc.cluster.local:5000"
+        - name: MLFLOW_S3_ENDPOINT_URL
+          value: "http://minio-svc.fog-tier.svc.cluster.local:9000"
+        - name: AWS_ACCESS_KEY_ID
+          value: "admin"
+        - name: AWS_SECRET_ACCESS_KEY
+          value: "password123"
+        - name: MQTT_HOST
+          value: "mosquitto-svc.edge-tier.svc.cluster.local"
+        - name: INDUSTRIAL_SHARED_SECRET
+          value: "industrial-mlops-shared-secret"
+        - name: DEPLOYMENT_ROOT
+          value: "/var/lib/industrial-mlops/edge"
+        ports:
+        - containerPort: 8012
+        volumeMounts:
+        - name: edge-state
+          mountPath: /var/lib/industrial-mlops/edge
+      volumes:
+      - name: edge-state
+        persistentVolumeClaim:
+          claimName: edge-state-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: edge-sync-svc
+  namespace: edge-tier
+spec:
+  selector:
+    app: edge-sync
+  ports:
+    - port: 8012
+      targetPort: 8012

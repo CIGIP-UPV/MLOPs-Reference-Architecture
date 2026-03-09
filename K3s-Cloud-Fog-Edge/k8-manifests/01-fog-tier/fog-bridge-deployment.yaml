@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fog-bridge
+  namespace: fog-tier
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fog-bridge
+  template:
+    metadata:
+      labels:
+        app: fog-bridge
+    spec:
+      containers:
+      - name: fog-bridge
+        image: ind-mlops-python-service:latest
+        command: ["python", "-m", "services.fog_bridge"]
+        env:
+        - name: TIMESCALE_HOST
+          value: "timescale-svc.fog-tier.svc.cluster.local"
+        - name: TIMESCALE_PORT
+          value: "5432"
+        - name: TIMESCALE_ADMIN_USER
+          value: "admin"
+        - name: TIMESCALE_ADMIN_PASSWORD
+          value: "password123"
+        - name: FACTORY_DB_NAME
+          value: "factory_db"
+        - name: MQTT_HOST
+          value: "mosquitto-svc.edge-tier.svc.cluster.local"
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: "kafka-svc.edge-tier.svc.cluster.local:9092"
+        - name: INDUSTRIAL_SHARED_SECRET
+          value: "industrial-mlops-shared-secret"
+        - name: SPOOL_ROOT
+          value: "/var/lib/industrial-mlops/spool"
+        ports:
+        - containerPort: 8011
+        volumeMounts:
+        - name: fog-spool
+          mountPath: /var/lib/industrial-mlops/spool
+      volumes:
+      - name: fog-spool
+        persistentVolumeClaim:
+          claimName: fog-spool-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fog-bridge-svc
+  namespace: fog-tier
+spec:
+  selector:
+    app: fog-bridge
+  ports:
+    - port: 8011
+      targetPort: 8011

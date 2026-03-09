@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cnc-simulator
+  namespace: edge-tier
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cnc-simulator
+  template:
+    metadata:
+      labels:
+        app: cnc-simulator
+    spec:
+      containers:
+      - name: cnc-simulator
+        image: ind-mlops-python-service:latest
+        command: ["python", "-m", "services.cnc_simulator"]
+        env:
+        - name: MQTT_HOST
+          value: "mosquitto-svc.edge-tier.svc.cluster.local"
+        - name: INDUSTRIAL_SHARED_SECRET
+          value: "industrial-mlops-shared-secret"
+        - name: EDGE_MACHINE_ID
+          value: "cnc-cell-01"
+        - name: EDGE_CELL_ID
+          value: "cell-01"
+        ports:
+        - containerPort: 8013
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cnc-simulator-svc
+  namespace: edge-tier
+spec:
+  selector:
+    app: cnc-simulator
+  ports:
+    - port: 8013
+      targetPort: 8013
