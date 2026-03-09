@@ -56,6 +56,29 @@ The repository intentionally maintains two complementary experimental lines:
 
 This separation is deliberate. The synthetic line supports **reproducibility**, while the company line supports **industrial grounding**. Together, they strengthen the validation of the architecture without overstating cross-scenario generalisability.
 
+The local artefacts also preserve a small set of auditable operational observations from the CNC validation environment, summarised below.
+
+## Observed Validation Snapshot
+
+The following values are directly supported by persisted local artefacts from the CNC validation environment, including Airflow task logs, TimescaleDB records, Prometheus historical metrics, and the persisted edge deployment state. They should be interpreted as **operational evidence of local execution**, not as cross-device benchmarks or evidence of broad transferability.
+
+| Indicator | Observed value | Evidence basis |
+| --- | --- | --- |
+| Seeded company reference events | 4,848 | Airflow bootstrap logs and persisted Timescale rows |
+| Persisted company sensor events | 21 | Timescale `company_sensor_events` and Prometheus ingestion counter |
+| Persisted edge predictions | 1 | Timescale `inference_events` and Prometheus prediction counter |
+| Observed edge inference latency | 99.6613 ms | Persisted inference record |
+| Closed-loop drift score | 0.178127 | Persisted drift reports and Airflow drift logs |
+| Closed-loop drift severity / drifted features | low / 1 | Persisted drift reports and Airflow drift logs |
+| Retraining decision | `skip_retraining` | Airflow closed-loop routing logs |
+| Rollback decision | `skip_rollback` | Airflow governance routing logs |
+| Applied deployment generation / deployed model | `1` / `cnc_company_reference_classifier` v`1` | Persisted edge deployment state |
+| Mean OTA sync latency | 248.5709 ms | Persisted edge sync status, based on 2 applied sync rows |
+
+These observations are intentionally narrow. The current local evidence does **not** support CPU profiling, memory profiling, energy claims, latency-distribution benchmarking, real rollback execution, or observed store-and-forward disruption episodes.
+
+Accordingly, this snapshot is best read as a compact validation trace for the instantiated CNC scenario, complementing the architecture and reproducibility material documented in the repository.
+
 ## Repository Layout
 
 This repository offers two deployment flavours:
