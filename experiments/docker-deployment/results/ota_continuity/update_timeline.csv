@@ -1,0 +1,7 @@
+record_type,timestamp,deployment_generation,model_name,model_version,sync_state,ota_latency_ms,status,action,reason,metric_predictions_total,metric_schema_mismatch_total,metric_sync_generation,metric_sync_commands_total,metric_sync_failures_total,notes
+deployment_state_before,2026-03-09T22:40:56.029137+00:00,2,cnc_tool_breakage_classifier,2,,,,,,0.0,0.0,2.0,0.0,0.0,state before update
+deployment_event,2026-03-09 22:41:25.355873+00,3,cnc_tool_breakage_classifier,3,,,command-issued,promote,ota-continuity-experiment,,,,,,ae75a4d6ace1bdf478ab044881f95bd3eadb717eb6a8e5607b0770291efaba0c
+edge_sync_status,2026-03-09 22:41:25.530063+00,3,cnc_tool_breakage_classifier,3,applied,167.19889640808105,,,,,,,,,promote
+metrics_snapshot_after_promotion,2026-03-09T22:41:25.854926+00:00,3.0,,,,,,,,289.0,0.0,3.0,1.0,0.0,after_promotion
+metrics_snapshot_after_stream,2026-03-09T22:42:05.091181+00:00,3.0,,,,,,,,1200.0,0.0,3.0,1.0,0.0,after_stream
+deployment_state_after,2026-03-09T22:42:04.828557+00:00,3,cnc_tool_breakage_classifier,3,,,,,,1200.0,0.0,3.0,1.0,0.0,state after update

@@ -1,0 +1,29 @@
+{
+  "after_promotion": {
+    "captured_at": "2026-03-09T22:41:25.854926+00:00",
+    "edge_inference_predictions_total": 289.0,
+    "edge_inference_schema_mismatch_total": 0.0,
+    "edge_sync_commands_total": 1.0,
+    "edge_sync_failures_total": 0.0,
+    "edge_sync_generation": 3.0,
+    "label": "after_promotion"
+  },
+  "after_stream": {
+    "captured_at": "2026-03-09T22:42:05.091181+00:00",
+    "edge_inference_predictions_total": 1200.0,
+    "edge_inference_schema_mismatch_total": 0.0,
+    "edge_sync_commands_total": 1.0,
+    "edge_sync_failures_total": 0.0,
+    "edge_sync_generation": 3.0,
+    "label": "after_stream"
+  },
+  "before_update": {
+    "captured_at": "2026-03-09T22:40:56.258989+00:00",
+    "edge_inference_predictions_total": 0.0,
+    "edge_inference_schema_mismatch_total": 0.0,
+    "edge_sync_commands_total": 0.0,
+    "edge_sync_failures_total": 0.0,
+    "edge_sync_generation": 2.0,
+    "label": "before_update"
+  }
+}

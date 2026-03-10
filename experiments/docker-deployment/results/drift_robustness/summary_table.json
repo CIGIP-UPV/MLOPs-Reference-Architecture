@@ -1,0 +1,46 @@
+[
+  {
+    "condition": "nominal",
+    "repeats": 25,
+    "mean_drift_score": 0.173927,
+    "min_drift_score": 0.118649,
+    "max_drift_score": 0.224253,
+    "mean_drifted_features": 0.12,
+    "severity_mode": "low",
+    "retraining_count": 0,
+    "retraining_rate": 0.0
+  },
+  {
+    "condition": "mild",
+    "repeats": 1,
+    "mean_drift_score": 0.244176,
+    "min_drift_score": 0.244176,
+    "max_drift_score": 0.244176,
+    "mean_drifted_features": 1,
+    "severity_mode": "low",
+    "retraining_count": 0,
+    "retraining_rate": 0.0
+  },
+  {
+    "condition": "medium",
+    "repeats": 1,
+    "mean_drift_score": 0.403308,
+    "min_drift_score": 0.403308,
+    "max_drift_score": 0.403308,
+    "mean_drifted_features": 3,
+    "severity_mode": "medium",
+    "retraining_count": 1,
+    "retraining_rate": 1.0
+  },
+  {
+    "condition": "strong",
+    "repeats": 1,
+    "mean_drift_score": 0.62838,
+    "min_drift_score": 0.62838,
+    "max_drift_score": 0.62838,
+    "mean_drifted_features": 6,
+    "severity_mode": "high",
+    "retraining_count": 1,
+    "retraining_rate": 1.0
+  }
+]
