@@ -1,0 +1,30 @@
+namespaceOverride: ""
+images:
+  pythonService: ind-mlops-python-service:latest
+  timescale: timescale/timescaledb:latest-pg13
+  minio: minio/minio:latest
+credentials:
+  timescaleUser: admin
+  timescalePassword: password123
+  minioRootUser: admin
+  minioRootPassword: password123
+sharedSecret: industrial-mlops-shared-secret
+peerNamespaces:
+  edge: edge-tier
+persistence:
+  timescale:
+    size: 5Gi
+    accessMode: ReadWriteOnce
+  minio:
+    size: 10Gi
+    accessMode: ReadWriteOnce
+  fogSpool:
+    size: 2Gi
+    accessMode: ReadWriteOnce
+services:
+  minio:
+    type: LoadBalancer
+  timescale:
+    type: ClusterIP
+  fogBridge:
+    type: ClusterIP

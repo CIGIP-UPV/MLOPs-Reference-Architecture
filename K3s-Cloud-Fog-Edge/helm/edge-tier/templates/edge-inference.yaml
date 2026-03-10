@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edge-inference
+  namespace: {{ include "edge-tier.namespace" . }}
+  labels:
+    app: edge-inference
+    {{- include "edge-tier.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: edge-inference
+  template:
+    metadata:
+      labels:
+        app: edge-inference
+        {{- include "edge-tier.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: edge-inference
+          image: {{ .Values.images.pythonService | quote }}
+          command: ["python", "-m", "services.edge_inference"]
+          env:
+            - name: MQTT_HOST
+              value: mosquitto-svc.{{ include "edge-tier.namespace" . }}.svc.cluster.local
+            - name: INDUSTRIAL_SHARED_SECRET
+              value: {{ .Values.sharedSecret | quote }}
+            - name: DEPLOYMENT_ROOT
+              value: /var/lib/industrial-mlops/edge
+            - name: TIMESCALE_HOST
+              value: timescale-svc.{{ .Values.peerNamespaces.fog }}.svc.cluster.local
+            - name: TIMESCALE_PORT
+              value: "5432"
+            - name: TIMESCALE_ADMIN_USER
+              value: {{ .Values.credentials.timescaleUser | quote }}
+            - name: TIMESCALE_ADMIN_PASSWORD
+              value: {{ .Values.credentials.timescalePassword | quote }}
+            - name: FACTORY_DB_NAME
+              value: factory_db
+          ports:
+            - containerPort: 8010
+          volumeMounts:
+            - name: edge-state
+              mountPath: /var/lib/industrial-mlops/edge
+      volumes:
+        - name: edge-state
+          persistentVolumeClaim:
+            claimName: edge-state-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: edge-inference-svc
+  namespace: {{ include "edge-tier.namespace" . }}
+  labels:
+    {{- include "edge-tier.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.services.edgeInference.type }}
+  selector:
+    app: edge-inference
+  ports:
+    - port: 8010
+      targetPort: 8010

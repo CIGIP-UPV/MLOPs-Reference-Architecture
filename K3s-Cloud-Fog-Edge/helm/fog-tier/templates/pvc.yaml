@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: timescale-pvc
+  namespace: {{ include "fog-tier.namespace" . }}
+  labels:
+    {{- include "fog-tier.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.persistence.timescale.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.timescale.size }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minio-pvc
+  namespace: {{ include "fog-tier.namespace" . }}
+  labels:
+    {{- include "fog-tier.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.persistence.minio.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.minio.size }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: fog-spool-pvc
+  namespace: {{ include "fog-tier.namespace" . }}
+  labels:
+    {{- include "fog-tier.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.persistence.fogSpool.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.fogSpool.size }}

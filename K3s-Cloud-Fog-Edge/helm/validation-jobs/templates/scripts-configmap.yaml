@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: validation-job-scripts
+  namespace: {{ include "validation-jobs.namespace" . }}
+  labels:
+    {{- include "validation-jobs.labels" . | nindent 4 }}
+data:
+  edge_profiling.py: |
+{{ .Files.Get "files/edge_profiling.py" | indent 4 }}
+  ota_continuity.py: |
+{{ .Files.Get "files/ota_continuity.py" | indent 4 }}
+  drift_robustness.py: |
+{{ .Files.Get "files/drift_robustness.py" | indent 4 }}

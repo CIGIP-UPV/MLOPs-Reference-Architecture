@@ -1,0 +1,20 @@
+namespaceOverride: ""
+images:
+  pythonService: ind-mlops-python-service:latest
+  enterpriseUi: ind-mlops-enterprise-ui:latest
+credentials:
+  timescaleUser: admin
+  timescalePassword: password123
+  minioAccessKey: admin
+  minioSecretKey: password123
+sharedSecret: industrial-mlops-shared-secret
+enterpriseApiKey: enterprise-demo-key
+peerNamespaces:
+  fog: fog-tier
+  cloud: cloud-tier
+  edge: edge-tier
+services:
+  api:
+    type: ClusterIP
+  ui:
+    type: LoadBalancer

@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: {{ include "governance.namespace" . }}
+  labels:
+    app: grafana
+    {{- include "governance.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+        {{- include "governance.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: grafana
+          image: {{ .Values.images.grafana | quote }}
+          env:
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              value: {{ .Values.credentials.grafanaAdminPassword | quote }}
+          ports:
+            - containerPort: 3000
+          volumeMounts:
+            - name: grafana-storage
+              mountPath: /var/lib/grafana
+      volumes:
+        - name: grafana-storage
+          persistentVolumeClaim:
+            claimName: grafana-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana-svc
+  namespace: {{ include "governance.namespace" . }}
+  labels:
+    {{- include "governance.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.services.grafana.type }}
+  selector:
+    app: grafana
+  ports:
+    - port: 3000
+      targetPort: 3000

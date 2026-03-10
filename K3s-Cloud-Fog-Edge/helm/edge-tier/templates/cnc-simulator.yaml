@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cnc-simulator
+  namespace: {{ include "edge-tier.namespace" . }}
+  labels:
+    app: cnc-simulator
+    {{- include "edge-tier.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cnc-simulator
+  template:
+    metadata:
+      labels:
+        app: cnc-simulator
+        {{- include "edge-tier.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: cnc-simulator
+          image: {{ .Values.images.pythonService | quote }}
+          command: ["python", "-m", "services.cnc_simulator"]
+          env:
+            - name: MQTT_HOST
+              value: mosquitto-svc.{{ include "edge-tier.namespace" . }}.svc.cluster.local
+            - name: INDUSTRIAL_SHARED_SECRET
+              value: {{ .Values.sharedSecret | quote }}
+            - name: EDGE_MACHINE_ID
+              value: {{ .Values.machine.id | quote }}
+            - name: EDGE_CELL_ID
+              value: {{ .Values.machine.cellId | quote }}
+            - name: SIMULATOR_PROFILE
+              value: {{ .Values.machine.simulatorProfile | quote }}
+          ports:
+            - containerPort: 8013
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cnc-simulator-svc
+  namespace: {{ include "edge-tier.namespace" . }}
+  labels:
+    {{- include "edge-tier.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.services.simulator.type }}
+  selector:
+    app: cnc-simulator
+  ports:
+    - port: 8013
+      targetPort: 8013

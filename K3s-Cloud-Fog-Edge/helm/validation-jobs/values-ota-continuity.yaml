@@ -1,0 +1,11 @@
+runId: ota-continuity-001
+jobs:
+  edgeProfiling:
+    enabled: false
+  otaContinuity:
+    enabled: true
+    eventCount: 1200
+    eventIntervalSeconds: 0.05
+    updateTriggerSeconds: 8.0
+  driftRobustness:
+    enabled: false

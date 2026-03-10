@@ -1,0 +1,11 @@
+runId: edge-profiling-001
+jobs:
+  edgeProfiling:
+    enabled: true
+    eventCount: 300
+    eventIntervalSeconds: 0.05
+    statsSampleSeconds: 1.0
+  otaContinuity:
+    enabled: false
+  driftRobustness:
+    enabled: false

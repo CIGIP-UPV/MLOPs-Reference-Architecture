@@ -1,0 +1,41 @@
+{{- if .Values.jobs.driftRobustness.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: drift-robustness-{{ .Values.runId | trunc 29 | trimSuffix "-" }}
+  namespace: {{ include "validation-jobs.namespace" . }}
+  labels:
+    experiment: drift-robustness
+    {{- include "validation-jobs.labels" . | nindent 4 }}
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: {{ .Values.jobs.driftRobustness.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        experiment: drift-robustness
+        {{- include "validation-jobs.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: validation-runner
+      restartPolicy: Never
+      containers:
+        - name: drift-robustness
+          image: {{ include "validation-jobs.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["python", "/opt/validation/drift_robustness.py"]
+          env:
+{{ include "validation-jobs.commonEnv" . | indent 12 }}
+            - name: DRIFT_NOMINAL_REPEATS
+              value: {{ .Values.jobs.driftRobustness.nominalRepeats | quote }}
+          volumeMounts:
+            - name: scripts
+              mountPath: /opt/validation
+            - name: results
+              mountPath: /results
+      volumes:
+        - name: scripts
+          configMap:
+            name: validation-job-scripts
+        - name: results
+          emptyDir: {}
+{{- end }}

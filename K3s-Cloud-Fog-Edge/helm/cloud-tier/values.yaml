@@ -1,0 +1,26 @@
+namespaceOverride: ""
+images:
+  airflow: ind-mlops-airflow:latest
+  mlflow: ind-mlops-mlflow:latest
+  pythonService: ind-mlops-python-service:latest
+  postgresTools: postgres:13
+credentials:
+  timescaleUser: admin
+  timescalePassword: password123
+  minioAccessKey: admin
+  minioSecretKey: password123
+sharedSecret: industrial-mlops-shared-secret
+peerNamespaces:
+  fog: fog-tier
+  edge: edge-tier
+services:
+  airflow:
+    type: LoadBalancer
+  mlflow:
+    type: LoadBalancer
+bootstrap:
+  enabled: true
+  backoffLimit: 3
+models:
+  defaultExperiment: CNC_Tool_Breakage_Closed_Loop
+  defaultModelName: cnc_tool_breakage_classifier

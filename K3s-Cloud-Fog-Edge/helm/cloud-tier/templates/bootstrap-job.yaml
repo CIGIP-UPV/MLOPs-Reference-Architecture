@@ -1,0 +1,51 @@
+{{- if .Values.bootstrap.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: platform-bootstrap
+  namespace: {{ include "cloud-tier.namespace" . }}
+  labels:
+    {{- include "cloud-tier.labels" . | nindent 4 }}
+spec:
+  backoffLimit: {{ .Values.bootstrap.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        job: platform-bootstrap
+        {{- include "cloud-tier.labels" . | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: bootstrap
+          image: {{ .Values.images.pythonService | quote }}
+          command: ["python", "-m", "services.db_bootstrap"]
+          env:
+            - name: TIMESCALE_HOST
+              value: timescale-svc.{{ .Values.peerNamespaces.fog }}.svc.cluster.local
+            - name: TIMESCALE_PORT
+              value: "5432"
+            - name: TIMESCALE_ADMIN_USER
+              value: {{ .Values.credentials.timescaleUser | quote }}
+            - name: TIMESCALE_ADMIN_PASSWORD
+              value: {{ .Values.credentials.timescalePassword | quote }}
+            - name: AIRFLOW_DB_NAME
+              value: airflow_db
+            - name: MLFLOW_DB_NAME
+              value: mlflow_db
+            - name: FACTORY_DB_NAME
+              value: factory_db
+            - name: MLFLOW_TRACKING_URI
+              value: http://mlflow-svc.{{ include "cloud-tier.namespace" . }}.svc.cluster.local:5000
+            - name: MLFLOW_S3_ENDPOINT_URL
+              value: http://minio-svc.{{ .Values.peerNamespaces.fog }}.svc.cluster.local:9000
+            - name: AWS_ACCESS_KEY_ID
+              value: {{ .Values.credentials.minioAccessKey | quote }}
+            - name: AWS_SECRET_ACCESS_KEY
+              value: {{ .Values.credentials.minioSecretKey | quote }}
+            - name: MQTT_HOST
+              value: mosquitto-svc.{{ .Values.peerNamespaces.edge }}.svc.cluster.local
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: kafka-svc.{{ .Values.peerNamespaces.edge }}.svc.cluster.local:9092
+            - name: INDUSTRIAL_SHARED_SECRET
+              value: {{ .Values.sharedSecret | quote }}
+{{- end }}

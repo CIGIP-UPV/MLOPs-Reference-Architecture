@@ -1,0 +1,19 @@
+namespaceOverride: ""
+images:
+  prometheus: prom/prometheus
+  grafana: grafana/grafana
+credentials:
+  grafanaAdminPassword: admin
+peerNamespaces:
+  cloud: cloud-tier
+  edge: edge-tier
+  fog: fog-tier
+persistence:
+  grafana:
+    size: 2Gi
+    accessMode: ReadWriteOnce
+services:
+  prometheus:
+    type: LoadBalancer
+  grafana:
+    type: LoadBalancer

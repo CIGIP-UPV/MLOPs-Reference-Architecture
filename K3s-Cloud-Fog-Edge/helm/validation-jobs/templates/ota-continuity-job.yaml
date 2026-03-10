@@ -1,0 +1,53 @@
+{{- if .Values.jobs.otaContinuity.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ota-continuity-{{ .Values.runId | trunc 31 | trimSuffix "-" }}
+  namespace: {{ include "validation-jobs.namespace" . }}
+  labels:
+    experiment: ota-continuity
+    {{- include "validation-jobs.labels" . | nindent 4 }}
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: {{ .Values.jobs.otaContinuity.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        experiment: ota-continuity
+        {{- include "validation-jobs.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: validation-runner
+      restartPolicy: Never
+      containers:
+        - name: ota-continuity
+          image: {{ include "validation-jobs.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["python", "/opt/validation/ota_continuity.py"]
+          env:
+{{ include "validation-jobs.commonEnv" . | indent 12 }}
+            - name: OTA_PROFILE_EVENT_COUNT
+              value: {{ .Values.jobs.otaContinuity.eventCount | quote }}
+            - name: OTA_PROFILE_EVENT_INTERVAL
+              value: {{ .Values.jobs.otaContinuity.eventIntervalSeconds | quote }}
+            - name: OTA_UPDATE_TRIGGER_SECONDS
+              value: {{ .Values.jobs.otaContinuity.updateTriggerSeconds | quote }}
+            - name: EDGE_STATE_PATH
+              value: /edge-state/deployment_state.json
+          volumeMounts:
+            - name: scripts
+              mountPath: /opt/validation
+            - name: results
+              mountPath: /results
+            - name: edge-state
+              mountPath: /edge-state
+              readOnly: true
+      volumes:
+        - name: scripts
+          configMap:
+            name: validation-job-scripts
+        - name: results
+          emptyDir: {}
+        - name: edge-state
+          persistentVolumeClaim:
+            claimName: edge-state-pvc
+{{- end }}

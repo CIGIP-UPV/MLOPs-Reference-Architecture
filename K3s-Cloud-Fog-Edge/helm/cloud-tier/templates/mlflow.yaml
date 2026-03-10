@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlflow
+  namespace: {{ include "cloud-tier.namespace" . }}
+  labels:
+    app: mlflow
+    {{- include "cloud-tier.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mlflow
+  template:
+    metadata:
+      labels:
+        app: mlflow
+        {{- include "cloud-tier.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: mlflow
+          image: {{ .Values.images.mlflow | quote }}
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              value: {{ .Values.credentials.minioAccessKey | quote }}
+            - name: AWS_SECRET_ACCESS_KEY
+              value: {{ .Values.credentials.minioSecretKey | quote }}
+            - name: MLFLOW_S3_ENDPOINT_URL
+              value: http://minio-svc.{{ .Values.peerNamespaces.fog }}.svc.cluster.local:9000
+            - name: BACKEND_STORE_URI
+              value: postgresql://{{ .Values.credentials.timescaleUser }}:{{ .Values.credentials.timescalePassword }}@timescale-svc.{{ .Values.peerNamespaces.fog }}.svc.cluster.local:5432/mlflow_db
+          ports:
+            - containerPort: 5000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mlflow-svc
+  namespace: {{ include "cloud-tier.namespace" . }}
+  labels:
+    {{- include "cloud-tier.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.services.mlflow.type }}
+  selector:
+    app: mlflow
+  ports:
+    - port: 5000
+      targetPort: 5000

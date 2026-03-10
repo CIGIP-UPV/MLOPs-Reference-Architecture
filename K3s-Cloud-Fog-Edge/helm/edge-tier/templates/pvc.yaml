@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kafka-pvc
+  namespace: {{ include "edge-tier.namespace" . }}
+  labels:
+    {{- include "edge-tier.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.persistence.kafka.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.kafka.size }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: zookeeper-pvc
+  namespace: {{ include "edge-tier.namespace" . }}
+  labels:
+    {{- include "edge-tier.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.persistence.zookeeper.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.zookeeper.size }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: edge-state-pvc
+  namespace: {{ include "edge-tier.namespace" . }}
+  labels:
+    {{- include "edge-tier.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.persistence.edgeState.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.edgeState.size }}

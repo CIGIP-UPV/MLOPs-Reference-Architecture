@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edge-sync
+  namespace: {{ include "edge-tier.namespace" . }}
+  labels:
+    app: edge-sync
+    {{- include "edge-tier.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: edge-sync
+  template:
+    metadata:
+      labels:
+        app: edge-sync
+        {{- include "edge-tier.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: edge-sync
+          image: {{ .Values.images.pythonService | quote }}
+          command: ["python", "-m", "services.edge_sync"]
+          env:
+            - name: MLFLOW_TRACKING_URI
+              value: http://mlflow-svc.{{ .Values.peerNamespaces.cloud }}.svc.cluster.local:5000
+            - name: MLFLOW_S3_ENDPOINT_URL
+              value: http://minio-svc.{{ .Values.peerNamespaces.fog }}.svc.cluster.local:9000
+            - name: AWS_ACCESS_KEY_ID
+              value: {{ .Values.credentials.minioAccessKey | quote }}
+            - name: AWS_SECRET_ACCESS_KEY
+              value: {{ .Values.credentials.minioSecretKey | quote }}
+            - name: MQTT_HOST
+              value: mosquitto-svc.{{ include "edge-tier.namespace" . }}.svc.cluster.local
+            - name: INDUSTRIAL_SHARED_SECRET
+              value: {{ .Values.sharedSecret | quote }}
+            - name: DEPLOYMENT_ROOT
+              value: /var/lib/industrial-mlops/edge
+            - name: EDGE_BOOTSTRAP_MODEL_NAME
+              value: {{ .Values.machine.bootstrapModelName | quote }}
+          ports:
+            - containerPort: 8012
+          volumeMounts:
+            - name: edge-state
+              mountPath: /var/lib/industrial-mlops/edge
+      volumes:
+        - name: edge-state
+          persistentVolumeClaim:
+            claimName: edge-state-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: edge-sync-svc
+  namespace: {{ include "edge-tier.namespace" . }}
+  labels:
+    {{- include "edge-tier.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.services.edgeSync.type }}
+  selector:
+    app: edge-sync
+  ports:
+    - port: 8012
+      targetPort: 8012

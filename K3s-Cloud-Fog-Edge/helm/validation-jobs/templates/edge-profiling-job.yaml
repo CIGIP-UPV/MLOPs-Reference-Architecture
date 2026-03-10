@@ -1,0 +1,45 @@
+{{- if .Values.jobs.edgeProfiling.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: edge-profiling-{{ .Values.runId | trunc 30 | trimSuffix "-" }}
+  namespace: {{ include "validation-jobs.namespace" . }}
+  labels:
+    experiment: edge-profiling
+    {{- include "validation-jobs.labels" . | nindent 4 }}
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: {{ .Values.jobs.edgeProfiling.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        experiment: edge-profiling
+        {{- include "validation-jobs.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: validation-runner
+      restartPolicy: Never
+      containers:
+        - name: edge-profiling
+          image: {{ include "validation-jobs.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["python", "/opt/validation/edge_profiling.py"]
+          env:
+{{ include "validation-jobs.commonEnv" . | indent 12 }}
+            - name: EDGE_PROFILE_EVENT_COUNT
+              value: {{ .Values.jobs.edgeProfiling.eventCount | quote }}
+            - name: EDGE_PROFILE_EVENT_INTERVAL
+              value: {{ .Values.jobs.edgeProfiling.eventIntervalSeconds | quote }}
+            - name: EDGE_PROFILE_STATS_INTERVAL
+              value: {{ .Values.jobs.edgeProfiling.statsSampleSeconds | quote }}
+          volumeMounts:
+            - name: scripts
+              mountPath: /opt/validation
+            - name: results
+              mountPath: /results
+      volumes:
+        - name: scripts
+          configMap:
+            name: validation-job-scripts
+        - name: results
+          emptyDir: {}
+{{- end }}

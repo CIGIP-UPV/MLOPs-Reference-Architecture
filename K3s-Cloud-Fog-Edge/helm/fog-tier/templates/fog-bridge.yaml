@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fog-bridge
+  namespace: {{ include "fog-tier.namespace" . }}
+  labels:
+    app: fog-bridge
+    {{- include "fog-tier.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fog-bridge
+  template:
+    metadata:
+      labels:
+        app: fog-bridge
+        {{- include "fog-tier.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: fog-bridge
+          image: {{ .Values.images.pythonService | quote }}
+          command: ["python", "-m", "services.fog_bridge"]
+          env:
+            - name: TIMESCALE_HOST
+              value: timescale-svc.{{ include "fog-tier.namespace" . }}.svc.cluster.local
+            - name: TIMESCALE_PORT
+              value: "5432"
+            - name: TIMESCALE_ADMIN_USER
+              value: {{ .Values.credentials.timescaleUser | quote }}
+            - name: TIMESCALE_ADMIN_PASSWORD
+              value: {{ .Values.credentials.timescalePassword | quote }}
+            - name: FACTORY_DB_NAME
+              value: factory_db
+            - name: MQTT_HOST
+              value: mosquitto-svc.{{ .Values.peerNamespaces.edge }}.svc.cluster.local
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: kafka-svc.{{ .Values.peerNamespaces.edge }}.svc.cluster.local:9092
+            - name: INDUSTRIAL_SHARED_SECRET
+              value: {{ .Values.sharedSecret | quote }}
+            - name: SPOOL_ROOT
+              value: /var/lib/industrial-mlops/spool
+          ports:
+            - containerPort: 8011
+          volumeMounts:
+            - name: fog-spool
+              mountPath: /var/lib/industrial-mlops/spool
+      volumes:
+        - name: fog-spool
+          persistentVolumeClaim:
+            claimName: fog-spool-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fog-bridge-svc
+  namespace: {{ include "fog-tier.namespace" . }}
+  labels:
+    {{- include "fog-tier.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.services.fogBridge.type }}
+  selector:
+    app: fog-bridge
+  ports:
+    - port: 8011
+      targetPort: 8011

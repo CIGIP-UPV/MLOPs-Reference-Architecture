@@ -1,0 +1,44 @@
+namespaceOverride: ""
+images:
+  pythonService: ind-mlops-python-service:latest
+  mosquitto: eclipse-mosquitto:2
+  kafka: confluentinc/cp-kafka:7.4.0
+  zookeeper: confluentinc/cp-zookeeper:7.4.0
+  nodered: nodered/node-red:latest
+credentials:
+  timescaleUser: admin
+  timescalePassword: password123
+  minioAccessKey: admin
+  minioSecretKey: password123
+sharedSecret: industrial-mlops-shared-secret
+peerNamespaces:
+  fog: fog-tier
+  cloud: cloud-tier
+machine:
+  id: cnc-cell-01
+  cellId: cell-01
+  simulatorProfile: synthetic
+  bootstrapModelName: cnc_tool_breakage_classifier
+persistence:
+  kafka:
+    size: 5Gi
+    accessMode: ReadWriteOnce
+  zookeeper:
+    size: 1Gi
+    accessMode: ReadWriteOnce
+  edgeState:
+    size: 2Gi
+    accessMode: ReadWriteOnce
+services:
+  mosquitto:
+    type: LoadBalancer
+  nodered:
+    type: LoadBalancer
+  kafka:
+    type: ClusterIP
+  edgeInference:
+    type: ClusterIP
+  edgeSync:
+    type: ClusterIP
+  simulator:
+    type: ClusterIP

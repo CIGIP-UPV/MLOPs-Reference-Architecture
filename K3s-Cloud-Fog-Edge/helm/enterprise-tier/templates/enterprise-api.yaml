@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: enterprise-api
+  namespace: {{ include "enterprise-tier.namespace" . }}
+  labels:
+    app: enterprise-api
+    {{- include "enterprise-tier.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: enterprise-api
+  template:
+    metadata:
+      labels:
+        app: enterprise-api
+        {{- include "enterprise-tier.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: enterprise-api
+          image: {{ .Values.images.pythonService | quote }}
+          command: ["python", "-m", "services.enterprise_api"]
+          env:
+            - name: TIMESCALE_HOST
+              value: timescale-svc.{{ .Values.peerNamespaces.fog }}.svc.cluster.local
+            - name: TIMESCALE_PORT
+              value: "5432"
+            - name: TIMESCALE_ADMIN_USER
+              value: {{ .Values.credentials.timescaleUser | quote }}
+            - name: TIMESCALE_ADMIN_PASSWORD
+              value: {{ .Values.credentials.timescalePassword | quote }}
+            - name: FACTORY_DB_NAME
+              value: factory_db
+            - name: MLFLOW_TRACKING_URI
+              value: http://mlflow-svc.{{ .Values.peerNamespaces.cloud }}.svc.cluster.local:5000
+            - name: MLFLOW_S3_ENDPOINT_URL
+              value: http://minio-svc.{{ .Values.peerNamespaces.fog }}.svc.cluster.local:9000
+            - name: AWS_ACCESS_KEY_ID
+              value: {{ .Values.credentials.minioAccessKey | quote }}
+            - name: AWS_SECRET_ACCESS_KEY
+              value: {{ .Values.credentials.minioSecretKey | quote }}
+            - name: MQTT_HOST
+              value: mosquitto-svc.{{ .Values.peerNamespaces.edge }}.svc.cluster.local
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: kafka-svc.{{ .Values.peerNamespaces.edge }}.svc.cluster.local:9092
+            - name: INDUSTRIAL_SHARED_SECRET
+              value: {{ .Values.sharedSecret | quote }}
+            - name: ENTERPRISE_API_KEY
+              value: {{ .Values.enterpriseApiKey | quote }}
+          ports:
+            - containerPort: 8085
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: enterprise-api-svc
+  namespace: {{ include "enterprise-tier.namespace" . }}
+  labels:
+    {{- include "enterprise-tier.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.services.api.type }}
+  selector:
+    app: enterprise-api
+  ports:
+    - port: 8085
+      targetPort: 8085

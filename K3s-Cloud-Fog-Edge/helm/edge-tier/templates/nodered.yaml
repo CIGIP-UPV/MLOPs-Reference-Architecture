@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nodered
+  namespace: {{ include "edge-tier.namespace" . }}
+  labels:
+    app: nodered
+    {{- include "edge-tier.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nodered
+  template:
+    metadata:
+      labels:
+        app: nodered
+        {{- include "edge-tier.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: nodered
+          image: {{ .Values.images.nodered | quote }}
+          ports:
+            - containerPort: 1880
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nodered-svc
+  namespace: {{ include "edge-tier.namespace" . }}
+  labels:
+    {{- include "edge-tier.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.services.nodered.type }}
+  selector:
+    app: nodered
+  ports:
+    - port: 1880
+      targetPort: 1880

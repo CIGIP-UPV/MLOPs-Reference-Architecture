@@ -1,0 +1,35 @@
+namespaceOverride: ""
+runId: manual-001
+image:
+  repository: ind-mlops-python-service
+  tag: latest
+  pullPolicy: IfNotPresent
+sharedSecret: industrial-mlops-shared-secret
+enterpriseApiKey: enterprise-demo-key
+peerNamespaces:
+  fog: fog-tier
+  cloud: cloud-tier
+  edge: edge-tier
+  enterprise: enterprise-tier
+credentials:
+  timescaleUser: admin
+  timescalePassword: password123
+  minioAccessKey: admin
+  minioSecretKey: password123
+jobs:
+  edgeProfiling:
+    enabled: false
+    eventCount: 300
+    eventIntervalSeconds: 0.05
+    statsSampleSeconds: 1.0
+    activeDeadlineSeconds: 1800
+  otaContinuity:
+    enabled: false
+    eventCount: 1200
+    eventIntervalSeconds: 0.05
+    updateTriggerSeconds: 8.0
+    activeDeadlineSeconds: 3600
+  driftRobustness:
+    enabled: false
+    nominalRepeats: 25
+    activeDeadlineSeconds: 1800

@@ -1,189 +1,69 @@
-# Kubernetes Industrial MLOps Lab ☸️ (Cloud-Fog-Edge)
+# Kubernetes Industrial MLOps Lab (Cloud-Fog-Edge)
 
-This folder contains the **Kubernetes manifests** to deploy the distributed **Cloud-Fog-Edge** architecture for Industrial AI described in the article.
+This folder contains the Kubernetes flavour of the industrial MLOps reference architecture.
 
-Unlike the flat Docker Compose setup, this deployment models a more production-oriented environment using **Namespaces** to isolate Cloud, Fog, Edge, Governance and Enterprise responsibilities.
+The repository now provides **two parallel deployment paths** for K3s:
 
-## What This Kubernetes Flavor Adds
+1. the original raw manifests in `k8-manifests/`
+2. a **Helm-based path** designed for **Rancher UI-driven deployment**
 
-This K3s flavor now mirrors the expanded reference implementation:
+For the current project scope, the Helm path is the preferred option because it preserves the same logical architecture while making the stack easier to install, upgrade, and validate from Rancher without requiring direct `kubectl` access.
 
-- Cloud bootstrap job for databases, buckets, seeded CNC data and baseline model registration.
-- Versioned Airflow image aligned with the Docker flavor.
-- Fog bridge deployment with spool storage.
-- Edge sync and edge inference deployments with persistent deployment state.
-- Enterprise API and Enterprise UI namespace.
-- Extended Prometheus scraping for the closed-loop services.
+## What is in this folder
 
----
+- `k8-manifests/`
+  Original Kubernetes manifests kept for traceability and low-level inspection.
+- `helm/fog-tier/`
+  Fog tier chart: TimescaleDB, MinIO, Fog Bridge, and fog-side persistence.
+- `helm/cloud-tier/`
+  Cloud tier chart: Airflow, MLflow, and the bootstrap job.
+- `helm/edge-tier/`
+  Edge tier chart: Mosquitto, Kafka, Node-RED, CNC simulator, Edge Sync, and Edge Inference.
+- `helm/governance/`
+  Governance tier chart: Prometheus and Grafana.
+- `helm/enterprise-tier/`
+  Enterprise tier chart: Enterprise API and Enterprise UI.
+- `helm/validation-jobs/`
+  Optional validation jobs for repeated edge profiling, OTA continuity, and drift robustness.
 
-## 🏗 Architecture Layers
+## Recommended deployment order in Rancher
 
-The cluster is divided into 5 logical tiers:
+Install the charts in this order and keep the namespace names exactly as listed below so that cross-tier DNS names remain aligned with the platform defaults:
 
-| Tier | Namespace | Key Components | Role |
-| :--- | :--- | :--- | :--- |
-| **1. Cloud** | `cloud-tier` | **Airflow, MLflow, bootstrap job** | Orchestration, retraining, registry, lifecycle bootstrap |
-| **2. Fog** | `fog-tier` | **TimescaleDB, MinIO, Fog Bridge** | Persistence, buffering, storage and data plane |
-| **3. Edge** | `edge-tier` | **Kafka, Mosquitto, Node-RED, CNC Simulator, Edge Sync, Edge Inference** | Real-time plant ingestion and low-latency scoring |
-| **4. Governance** | `governance` | **Prometheus, Grafana** | Cross-tier observability |
-| **5. Enterprise** | `enterprise-tier` | **Enterprise API, Enterprise UI** | Supervisory control and reviewer-facing dashboard |
+1. `fog-tier` chart in namespace `fog-tier`
+2. `cloud-tier` chart in namespace `cloud-tier`
+3. `edge-tier` chart in namespace `edge-tier`
+4. `governance` chart in namespace `governance`
+5. `enterprise-tier` chart in namespace `enterprise-tier`
 
----
+After the platform is healthy, run the optional validation jobs from the `validation-jobs` chart in namespace `edge-tier`.
 
-## 📂 Directory Structure
+## Validation path
 
-```text
-k8-manifests/
-├── 00-base/                  # Namespaces and PVCs
-├── 01-fog-tier/              # TimescaleDB, MinIO, Fog Bridge
-├── 02-cloud-tier/            # Airflow, MLflow, bootstrap job
-├── 03-edge-tier/             # Kafka, Mosquitto, Node-RED, edge services, CNC simulator
-├── 04-governance/            # Prometheus and Grafana
-└── 05-enterprise-tier/       # Enterprise API and Enterprise UI
-```
+The Helm charts are intended to support the same validation families already exercised in the Docker flavour:
 
----
+- drift logic robustness
+- OTA/update continuity
+- repeated edge inference latency
+- prediction count and schema mismatch count
+- CPU and memory observation for the edge inference path
 
-# 🚀 Deployment Guide
+The detailed Rancher-oriented procedure is documented here:
 
-### Prerequisites
+- [Rancher Helm Validation Guide](../docs/RANCHER_HELM_VALIDATION_GUIDE.md)
 
-- **Kubernetes Cluster** (Docker Desktop K8s, Minikube, K3s or equivalent).
-- `kubectl` configured.
-- Minimum recommended resources: **4 CPUs** and **8 GB RAM**.
-- Local images built from this repository or pushed to a registry accessible by the cluster.
+## Local validation performed in this repository
 
-## Build the Custom Images First
+Because this workspace does not have access to the target K3s server, validation was limited to chart and script checks that can be executed locally:
 
-The Kubernetes manifests expect images built from the repository:
+- `helm lint` passed for all six charts
+- `helm template` rendered the five platform charts and the three validation-job configurations without template errors
+- Python syntax checks passed for the validation job scripts
 
-```bash
-docker build -t ind-mlops-airflow:latest -f Docker-Cloud-Fog-Edge/build/airflow/Dockerfile Docker-Cloud-Fog-Edge
-docker build -t ind-mlops-mlflow:latest -f Docker-Cloud-Fog-Edge/build/mlflow/Dockerfile Docker-Cloud-Fog-Edge
-docker build -t ind-mlops-python-service:latest -f Docker-Cloud-Fog-Edge/build/python-service/Dockerfile Docker-Cloud-Fog-Edge
-docker build -t ind-mlops-enterprise-ui:latest -f Docker-Cloud-Fog-Edge/build/enterprise-ui/Dockerfile Docker-Cloud-Fog-Edge
-```
+This means the charts are locally renderable and structurally valid. It does **not** replace runtime verification inside the target Rancher-managed cluster.
 
-If you are using K3s or a remote cluster, load or push these images to the runtime registry used by the cluster.
+## Notes
 
----
-
-## Step-by-Step Installation
-
-Run the commands in this order so the persistence layer is available before the bootstrap and control plane.
-
-**1. Base Infrastructure**
-
-```bash
-kubectl apply -f k8-manifests/00-base/
-```
-
-**2. Fog Tier**
-
-```bash
-kubectl apply -f k8-manifests/01-fog-tier/
-```
-
-Wait until `timescale` and `minio` are running.
-
-**3. Cloud Tier**
-
-```bash
-kubectl apply -f k8-manifests/02-cloud-tier/
-```
-
-This includes the `platform-bootstrap` Job that creates databases/buckets, seeds CNC telemetry and registers the initial production model.
-
-**4. Edge Tier**
-
-```bash
-kubectl apply -f k8-manifests/03-edge-tier/
-```
-
-**5. Governance Tier**
-
-```bash
-kubectl apply -f k8-manifests/04-governance/
-```
-
-**6. Enterprise Tier**
-
-```bash
-kubectl apply -f k8-manifests/05-enterprise-tier/
-```
-
----
-
-## 🔌 Accessing Services (Port Forwarding)
-
-### ☁️ Cloud Tier Services
-
-**Airflow UI**
-
-```bash
-kubectl port-forward svc/airflow-svc -n cloud-tier 8080:8080
-```
-
-**MLflow UI**
-
-```bash
-kubectl port-forward svc/mlflow-svc -n cloud-tier 5000:5000
-```
-
-### 🌫️ Fog Tier Services
-
-**MinIO Console**
-
-```bash
-kubectl port-forward svc/minio-svc -n fog-tier 9001:9001
-```
-
-### 🏭 Edge Tier Services
-
-**Node-RED**
-
-```bash
-kubectl port-forward svc/nodered-svc -n edge-tier 1880:1880
-```
-
-### 🛡️ Governance
-
-**Grafana**
-
-```bash
-kubectl port-forward svc/grafana-svc -n governance 3000:3000
-```
-
-### 🏢 Enterprise Tier
-
-**Enterprise API**
-
-```bash
-kubectl port-forward svc/enterprise-api-svc -n enterprise-tier 8085:8085
-```
-
-**Enterprise UI**
-
-```bash
-kubectl port-forward svc/enterprise-ui-svc -n enterprise-tier 8088:80
-```
-
----
-
-## ⚙️ Operational Notes
-
-- The MinIO buckets are created by the bootstrap job through the shared Python lifecycle logic.
-- The edge sync agent stores the applied deployment state in `edge-state-pvc`.
-- The fog bridge stores buffered events in `fog-spool-pvc` if downstream delivery fails.
-- Airflow DAGs are embedded into the custom Airflow image and aligned with the Docker implementation.
-
----
-
-## 🗑️ Cleanup
-
-```bash
-kubectl delete namespace cloud-tier fog-tier edge-tier governance enterprise-tier
-```
-
-> Note: PVC cleanup behavior depends on your storage class reclaim policy.
+- The Helm charts preserve the same resource names and service endpoints used by the raw manifests.
+- The raw manifests remain in the repository because they are still useful as low-level architectural evidence.
+- The validation jobs are intentionally optional. They are meant to produce operational evidence for the article revision, not to alter the platform lifecycle.

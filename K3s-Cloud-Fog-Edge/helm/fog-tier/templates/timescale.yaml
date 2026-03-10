@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: timescale
+  namespace: {{ include "fog-tier.namespace" . }}
+  labels:
+    app: timescale
+    {{- include "fog-tier.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: timescale
+  template:
+    metadata:
+      labels:
+        app: timescale
+        {{- include "fog-tier.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: timescale
+          image: {{ .Values.images.timescale | quote }}
+          env:
+            - name: POSTGRES_USER
+              value: {{ .Values.credentials.timescaleUser | quote }}
+            - name: POSTGRES_PASSWORD
+              value: {{ .Values.credentials.timescalePassword | quote }}
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: storage
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: timescale-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: timescale-svc
+  namespace: {{ include "fog-tier.namespace" . }}
+  labels:
+    {{- include "fog-tier.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.services.timescale.type }}
+  selector:
+    app: timescale
+  ports:
+    - port: 5432
+      targetPort: 5432

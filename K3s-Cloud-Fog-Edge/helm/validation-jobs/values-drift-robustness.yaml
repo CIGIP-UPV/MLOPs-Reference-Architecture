@@ -1,0 +1,9 @@
+runId: drift-robustness-001
+jobs:
+  edgeProfiling:
+    enabled: false
+  otaContinuity:
+    enabled: false
+  driftRobustness:
+    enabled: true
+    nominalRepeats: 25

@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airflow
+  namespace: {{ include "cloud-tier.namespace" . }}
+  labels:
+    app: airflow
+    {{- include "cloud-tier.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: airflow
+  template:
+    metadata:
+      labels:
+        app: airflow
+        {{- include "cloud-tier.labels" . | nindent 8 }}
+    spec:
+      initContainers:
+        - name: wait-for-db
+          image: {{ .Values.images.postgresTools | quote }}
+          command:
+            - sh
+            - -c
+            - >-
+              until pg_isready -h timescale-svc.{{ .Values.peerNamespaces.fog }}.svc.cluster.local -p 5432 -U {{ .Values.credentials.timescaleUser }};
+              do echo waiting for db; sleep 2; done;
+      containers:
+        - name: webserver
+          image: {{ .Values.images.airflow | quote }}
+          args: ["webserver"]
+          env: &airflowEnv
+            - name: AIRFLOW__CORE__EXECUTOR
+              value: LocalExecutor
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
+              value: postgresql+psycopg2://{{ .Values.credentials.timescaleUser }}:{{ .Values.credentials.timescalePassword }}@timescale-svc.{{ .Values.peerNamespaces.fog }}.svc.cluster.local:5432/airflow_db
+            - name: AIRFLOW__CORE__SQL_ALCHEMY_CONN
+              value: postgresql+psycopg2://{{ .Values.credentials.timescaleUser }}:{{ .Values.credentials.timescalePassword }}@timescale-svc.{{ .Values.peerNamespaces.fog }}.svc.cluster.local:5432/airflow_db
+            - name: AIRFLOW__CORE__LOAD_EXAMPLES
+              value: "False"
+            - name: MLFLOW_TRACKING_URI
+              value: http://mlflow-svc.{{ include "cloud-tier.namespace" . }}.svc.cluster.local:5000
+            - name: MLFLOW_S3_ENDPOINT_URL
+              value: http://minio-svc.{{ .Values.peerNamespaces.fog }}.svc.cluster.local:9000
+            - name: MLFLOW_EXPERIMENT_NAME
+              value: {{ .Values.models.defaultExperiment | quote }}
+            - name: MLFLOW_MODEL_NAME
+              value: {{ .Values.models.defaultModelName | quote }}
+            - name: AWS_ACCESS_KEY_ID
+              value: {{ .Values.credentials.minioAccessKey | quote }}
+            - name: AWS_SECRET_ACCESS_KEY
+              value: {{ .Values.credentials.minioSecretKey | quote }}
+            - name: TIMESCALE_HOST
+              value: timescale-svc.{{ .Values.peerNamespaces.fog }}.svc.cluster.local
+            - name: TIMESCALE_PORT
+              value: "5432"
+            - name: TIMESCALE_ADMIN_USER
+              value: {{ .Values.credentials.timescaleUser | quote }}
+            - name: TIMESCALE_ADMIN_PASSWORD
+              value: {{ .Values.credentials.timescalePassword | quote }}
+            - name: FACTORY_DB_NAME
+              value: factory_db
+            - name: INDUSTRIAL_SHARED_SECRET
+              value: {{ .Values.sharedSecret | quote }}
+            - name: MQTT_HOST
+              value: mosquitto-svc.{{ .Values.peerNamespaces.edge }}.svc.cluster.local
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: kafka-svc.{{ .Values.peerNamespaces.edge }}.svc.cluster.local:9092
+          ports:
+            - containerPort: 8080
+        - name: scheduler
+          image: {{ .Values.images.airflow | quote }}
+          args: ["scheduler"]
+          env: *airflowEnv
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: airflow-svc
+  namespace: {{ include "cloud-tier.namespace" . }}
+  labels:
+    {{- include "cloud-tier.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.services.airflow.type }}
+  selector:
+    app: airflow
+  ports:
+    - port: 8080
+      targetPort: 8080
